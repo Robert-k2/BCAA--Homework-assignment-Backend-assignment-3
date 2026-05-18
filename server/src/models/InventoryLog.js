@@ -1,23 +1,24 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const inventoryLogSchema = new mongoose.Schema(
   {
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
-      required: true
+      required: true,
     },
     action: {
       type: String,
       enum: ["ADD", "REMOVE"],
-      required: true
+      required: true,
     },
     amount: {
       type: Number,
-      required: true
-    }
+      required: true,
+      min: 1,
+    },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("InventoryLog", inventoryLogSchema);
+export default mongoose.model("InventoryLog", inventoryLogSchema);

@@ -1,29 +1,84 @@
-const Product = require("../models/Product");//import the product model to interate with the products collection 
-// CREATE PRODUCT
-exports.createProduct = async (req, res) => {//define controller function for product creation 
+import Product from "../models/Product.js";
+import InventoryLog from "../models/InventoryLog.js";
+
+// ── CREATE PRODUCT ────────────────────────────────────────
+export const createProduct = async (req, res) => {
   try {
-    const product = await Product.create(req.body);
-    res.status(201).json({// sent HTTP status 201 if successful 
-      success: true,
-      data: product
+    const { productId, name, price, description, imageUrl, quantity, categoryList, inventory, supplier } = req.body;
+
+    const product = await Product.create({
+      productId,
+      name,
+      price,
+      description,
+      imageUrl,
+      categoryList: categoryList ?? [],
+      inventory: {
+        quantity: quantity ?? inventory?.quantity ?? 0,
+        minimumThreshold: inventory?.minimumThreshold ?? 5,
+      },
+      supplier,
     });
-  } catch (error) { //catch any errors 
-    res.status(400).json({ message: error.message });
+
+    res.status(201).json({ success: true, data: product });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
-//GET ALL PRODUCTS
-
-exports.getAllProducts = async (req, res) => {//function to retrieve  all products 
+// ── GET ALL PRODUCTS ──────────────────────────────────────
+export const getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find();//fetch all product documents from the database 
-
-    res.status(200).json({ //Send HTTP status 200
-      success: true,// shows successful operation
-      data: products // returns list of products 
-    });
-  } catch (error) { //catch any server/database errors 
-    res.status(500).json({ message: error.message }); //send HTTP 400 with error message 
+    const products = await Product.find();
+    res.status(200).json({ success: true, data: products });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
+// ── CREATE INVENTORY LOG ──────────────────────────────────
+export const createLog = async (req, res) => {
+  try {
+    const { product, action, amount } = req.body;
+
+    if (!product || !action || !amount) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const numericAmount = Number(amount);
+
+    if (numericAmount <= 0) {
+      return res.status(400).json({ message: "Amount must be greater than 0" });
+    }
+
+    if (!["ADD", "REMOVE"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action type" });
+    }
+
+    const foundProduct = await Product.findById(product);
+    if (!foundProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (action === "ADD") {
+      foundProduct.inventory.quantity += numericAmount;
+    }
+
+    if (action === "REMOVE") {
+      if (foundProduct.inventory.quantity < numericAmount) {
+        return res.status(400).json({ message: "Not enough stock available" });
+      }
+      foundProduct.inventory.quantity -= numericAmount;
+    }
+
+    await foundProduct.save();
+
+    const log = await InventoryLog.create({ product, action, amount: numericAmount });
+
+    res.status(201).json({ success: true, data: log });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
